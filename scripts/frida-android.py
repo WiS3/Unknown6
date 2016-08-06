@@ -5,11 +5,12 @@ import argparse
 
 package_name = "com.nianticlabs.pokemongo"
 input_counter = 0
-dump_directory_location = r'..\dumps'
+DEFAULT_DUMP_DIRECTORY_LOCATION = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'dumps')
 
 parser = argparse.ArgumentParser(description='Frida script for Android devices')
 parser.add_argument('device', metavar='d', type=int, help='The device ID to which you want to connect')
 parser.add_argument('parse', default=0, metavar='p', type=bool, help="Whether to parse proto using protoc's decode_raw (make sure protoc is in your dumps directory)")
+parser.add_argument('-o', '--outdir', default=DEFAULT_DUMP_DIRECTORY_LOCATION , metavar='o', type=str, help='Output directory')
 args = parser.parse_args()
 
 def get_messages_from_js(message, data):
@@ -17,13 +18,14 @@ def get_messages_from_js(message, data):
 		if data is None:
 			return
 		global input_counter
-		file_name = dump_directory_location + r'\dump'
+		file_name = os.path.join(args.outdir, 'dump')
+		print 'dir: {}'.format(file_name)
 		if message['payload']['name'] == 'result':
 			input_counter -= 1
-			file_name += str(input_counter)
+			file_name += '%05d' % (input_counter)
 			file_name += '_encrypted'
 		elif message['payload']['name'] == 'start':
-			file_name += str(input_counter)
+			file_name += '%05d' % (input_counter)
 			# Create a raw-decoded proto file.
 			if args.parse:
 				parse = True
@@ -32,7 +34,7 @@ def get_messages_from_js(message, data):
 		f.write(data)
 		f.close()
 		if parse:
-			command = "type %s | %s\protoc --decode_raw > %s" % (file_name + '.bin', dump_directory_location, file_name + ".txt")
+			command = "type %s | %s\protoc --decode_raw > %s" % (file_name + '.bin', DEFAULT_DUMP_DIRECTORY_LOCATION, file_name + ".txt")
 			b = os.system(command)
 			parse = False
 
@@ -92,8 +94,8 @@ def main():
 	device_mobile = get_device(args.device)
 	
 	# Create dumps directory, it doesn't exist
-	if not os.path.exists(dump_directory_location):
-	    os.makedirs(dump_directory_location)
+	if not os.path.exists(args.outdir):
+	    os.makedirs(args.outdir)
 
 	process = device_mobile.attach(package_name)
 	script = process.create_script(instrument_debugger_checks())
